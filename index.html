@@ -4,6 +4,21 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Keyline maker</title>
+<meta name="description" content="Enter a carton's inside size and get its cut and fold lines as a true-scale PDF or SVG.">
+<meta name="theme-color" content="#eef0ec">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="canonical" href="https://bharat2913.github.io/keyline-maker/">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Keyline maker">
+<meta property="og:title" content="Keyline maker">
+<meta property="og:description" content="Enter a carton's inside size and get its cut and fold lines as a true-scale PDF or SVG.">
+<meta property="og:url" content="https://bharat2913.github.io/keyline-maker/">
+<meta property="og:image" content="https://bharat2913.github.io/keyline-maker/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Keyline maker showing the flat layout of a slotted carton with cut and fold lines">
+<meta name="twitter:card" content="summary_large_image">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&display=swap" rel="stylesheet">
@@ -399,8 +414,20 @@
     const { L, B, H } = current.p;
     const filename = `keyline-${r1(L)}x${r1(B)}x${r1(H)}.${ext}`;
     const data = ext === 'pdf' ? toPDF(current.g) : `<?xml version="1.0" encoding="UTF-8"?>\n${toSVG(current.g, false)}\n`;
-    const blob = new Blob([data], { type: ext === 'pdf' ? 'application/pdf' : 'image/svg+xml' });
+    const type = ext === 'pdf' ? 'application/pdf' : 'image/svg+xml';
+    const blob = new Blob([data], { type });
     setStatus('');
+    // On phones, open the share sheet straight away (Save to Files, Mail, WhatsApp…).
+    // Must run before any await so Safari still counts it as part of the tap.
+    if (shareFiles) {
+      try {
+        await navigator.share({ files: [new File([blob], filename, { type })] });
+        return;
+      } catch (e) {
+        if (e.name === 'AbortError') return;
+        // anything else (e.g. share blocked in an embed): fall through to a normal download
+      }
+    }
     const dl = await getDownloader();
     if (dl === 'anchor') {
       const a = document.createElement('a');
@@ -421,6 +448,10 @@
       else setStatus('Downloads aren’t available in this view.');
     }
   }
+
+  const shareFiles = matchMedia('(pointer: coarse)').matches && !!navigator.canShare &&
+    navigator.canShare({ files: [new File([''], 'x.pdf', { type: 'application/pdf' })] });
+  if (shareFiles) { $('dlPdf').textContent = 'Share PDF'; $('dlSvg').textContent = 'Share SVG'; }
 
   for (const k of ['L', 'B', 'H', 'G', 'E']) $(k).addEventListener('input', render);
   $('dlPdf').addEventListener('click', () => save('pdf'));
