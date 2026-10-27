@@ -1,0 +1,432 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Keyline maker</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --paper: #eef0ec;
+    --ink: #1d2421;
+    --muted: #5d6762;
+    --line: #cbd1cc;
+    --field: #ffffff;
+    --accent: #2028b0;
+    --accent-ink: #ffffff;
+    --fold: #e0201b;
+    --mat: #2f4b3f;
+    --mat-grid: rgba(255,255,255,.07);
+    --mat-grid-major: rgba(255,255,255,.13);
+    --error: #b3261e;
+    color-scheme: light;
+    box-sizing: border-box;
+    padding-top: env(safe-area-inset-top, 0px);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --paper: #161a18; --ink: #e4e8e5; --muted: #9aa49f; --line: #2f3833;
+      --field: #1e2421; --accent: #8c93ff; --accent-ink: #10132e; --fold: #ff6b66;
+      --mat: #1f3229; --error: #ff8a80; color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --paper: #161a18; --ink: #e4e8e5; --muted: #9aa49f; --line: #2f3833;
+    --field: #1e2421; --accent: #8c93ff; --accent-ink: #10132e; --fold: #ff6b66;
+    --mat: #1f3229; --error: #ff8a80; color-scheme: dark;
+  }
+  *, *::before, *::after { box-sizing: inherit; }
+  html { height: 100%; scroll-padding-top: env(safe-area-inset-top, 0px); }
+  body {
+    margin: 0; height: 100%; background: var(--paper); color: var(--ink);
+    font-family: "Barlow", "Segoe UI", system-ui, -apple-system, sans-serif;
+    font-size: 16px; line-height: 1.45;
+  }
+  .app { display: grid; grid-template-columns: 340px 1fr; height: 100%; }
+  aside {
+    padding: 28px 28px 32px; border-right: 1px solid var(--line);
+    overflow-y: auto; display: flex; flex-direction: column; gap: 24px;
+  }
+  h1 { font-size: 1.75rem; font-weight: 600; line-height: 1.1; margin: 0 0 6px; letter-spacing: -0.01em; }
+  .lede { margin: 0; color: var(--muted); max-width: 32ch; }
+  label { display: block; font-weight: 500; font-size: .95rem; margin-bottom: 6px; }
+  select, input {
+    width: 100%; font: inherit; color: var(--ink); background: var(--field);
+    border: 1px solid var(--line); border-radius: 6px; padding: 9px 10px;
+  }
+  input { font-variant-numeric: tabular-nums; font-size: 1.15rem; font-weight: 500; }
+  select:focus-visible, input:focus-visible, button:focus-visible, summary:focus-visible {
+    outline: 2px solid var(--accent); outline-offset: 2px;
+  }
+  .dims { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+  .dims label { font-size: .85rem; color: var(--muted); }
+  .unit { color: var(--muted); font-size: .85rem; margin-top: 6px; }
+  details { border-top: 1px solid var(--line); padding-top: 14px; }
+  summary { cursor: pointer; font-weight: 500; }
+  .allow { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 12px; }
+  .allow input { font-size: 1rem; }
+  .hint { color: var(--muted); font-size: .85rem; margin: 10px 0 0; }
+  .blank { border-top: 1px solid var(--line); padding-top: 14px; }
+  .blank p { margin: 0; color: var(--muted); font-size: .9rem; }
+  .blank strong { display: block; font-size: 1.5rem; font-weight: 600; color: var(--ink); font-variant-numeric: tabular-nums; }
+  .actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  button {
+    font: inherit; font-weight: 600; border-radius: 6px; padding: 11px 12px; cursor: pointer;
+    border: 1px solid var(--accent); background: var(--accent); color: var(--accent-ink);
+  }
+  button.secondary { background: transparent; color: var(--accent); }
+  button:disabled { opacity: .4; cursor: not-allowed; }
+  .status { min-height: 1.4em; font-size: .9rem; color: var(--muted); margin: -12px 0 0; }
+  .legend { display: flex; gap: 18px; font-size: .85rem; color: var(--muted); margin-top: auto; }
+  .legend span { display: inline-flex; align-items: center; gap: 6px; }
+  .swatch { width: 22px; height: 0; border-top: 2px solid var(--accent); }
+  .swatch.fold { border-top: 2px dashed var(--fold); }
+  main {
+    position: relative; overflow: auto; display: grid; place-items: center; padding: 32px;
+    background-color: var(--mat);
+    background-image:
+      linear-gradient(var(--mat-grid-major) 1px, transparent 1px),
+      linear-gradient(90deg, var(--mat-grid-major) 1px, transparent 1px),
+      linear-gradient(var(--mat-grid) 1px, transparent 1px),
+      linear-gradient(90deg, var(--mat-grid) 1px, transparent 1px);
+    background-size: 100px 100px, 100px 100px, 20px 20px, 20px 20px;
+  }
+  #preview { width: 100%; height: 100%; max-height: calc(100vh - 64px); }
+  #preview svg { width: 100%; height: 100%; display: block; }
+  .error { color: #fff; background: rgba(0,0,0,.35); padding: 14px 18px; border-radius: 6px; max-width: 40ch; }
+  .field-error input { border-color: var(--error); }
+  @media (max-width: 820px) {
+    .app { grid-template-columns: 1fr; grid-template-rows: auto auto; height: auto; }
+    aside { border-right: 0; border-bottom: 1px solid var(--line); }
+    main { min-height: 60vh; padding: 16px; }
+    #preview { max-height: none; height: 60vh; }
+    .legend { margin-top: 0; }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <aside>
+    <div>
+      <h1>Keyline maker</h1>
+      <p class="lede">Enter the inside size of your carton to get its cut and fold lines.</p>
+    </div>
+
+    <div>
+      <label for="style">Carton style</label>
+      <select id="style">
+        <option value="slotted">Slotted carton, overlapping flaps</option>
+      </select>
+    </div>
+
+    <div>
+      <div class="dims">
+        <div><label for="L">Length</label><input id="L" type="number" inputmode="decimal" min="10" value="235"></div>
+        <div><label for="B">Breadth</label><input id="B" type="number" inputmode="decimal" min="10" value="178"></div>
+        <div><label for="H">Height</label><input id="H" type="number" inputmode="decimal" min="10" value="245"></div>
+      </div>
+      <div class="unit">All sizes in millimetres</div>
+    </div>
+
+    <details>
+      <summary>Allowances</summary>
+      <div class="allow">
+        <div><label for="G">Glue flap width</label><input id="G" type="number" inputmode="decimal" min="5" value="45"></div>
+        <div><label for="E">Flap overlap</label><input id="E" type="number" inputmode="decimal" min="0" value="0"></div>
+      </div>
+      <p class="hint">Each top and bottom flap is half the breadth, so the flaps meet in the middle. Add overlap to make them longer. Small boxes usually need a narrower glue flap, around 15–20 mm.</p>
+    </details>
+
+    <div class="blank">
+      <p>Flat sheet size</p>
+      <strong id="sheet">–</strong>
+    </div>
+
+    <div class="actions">
+      <button id="dlPdf" type="button">Download PDF</button>
+      <button id="dlSvg" type="button" class="secondary">Download SVG</button>
+    </div>
+    <p class="status" id="status" role="status" aria-live="polite"></p>
+
+    <div class="legend">
+      <span><i class="swatch"></i>Cut</span>
+      <span><i class="swatch fold"></i>Fold</span>
+    </div>
+  </aside>
+
+  <main>
+    <div id="preview" aria-label="Keyline preview"></div>
+  </main>
+</div>
+
+<script>
+(() => {
+  const R = 3;                 // slot end radius
+  const D = 2;                 // fold offset between long and short panels
+  const TAN = Math.tan(15 * Math.PI / 180); // glue flap taper
+  const K = 0.5523;            // quarter-circle bezier factor
+  const MARGIN = 5;
+
+  const COLORS = { cut: '#2028b0', fold: '#fa0000', dim: '#555555' };
+
+  const $ = id => document.getElementById(id);
+  const fmt = n => (Math.round(n * 1000) / 1000).toString();
+  const r1 = n => (Math.round(n * 10) / 10).toString();
+
+  function read() {
+    const v = {};
+    for (const k of ['L', 'B', 'H', 'G', 'E']) v[k] = parseFloat($(k).value);
+    return v;
+  }
+
+  function validate(p) {
+    const errs = [];
+    const bad = (k, msg) => { errs.push(msg); $(k).parentElement.classList.add('field-error'); };
+    for (const k of ['L', 'B', 'H', 'G', 'E']) $(k).parentElement.classList.remove('field-error');
+    if (!(p.L >= 10 && p.L <= 3000)) bad('L', 'Length must be between 10 and 3000 mm.');
+    if (!(p.B >= 10 && p.B <= 3000)) bad('B', 'Breadth must be between 10 and 3000 mm.');
+    if (!(p.H >= 10 && p.H <= 3000)) bad('H', 'Height must be between 10 and 3000 mm.');
+    if (!(p.G >= 5 && p.G <= 100)) bad('G', 'Glue flap width must be between 5 and 100 mm.');
+    if (!(p.E >= 0 && p.E <= 500)) bad('E', 'Flap overlap must be between 0 and 500 mm.');
+    if (!errs.length && p.H - 2 * D - 2 * p.G * TAN < 2) bad('G', 'Glue flap is too wide for this height. Make it narrower.');
+    return errs;
+  }
+
+  function build(p) {
+    const { L, B, H, G, E } = p;
+    const T = B / 2 + E;         // top fold on long panels
+    const ys = T + D;            // top fold on short panels
+    const ysb = T + H - D;       // bottom fold on short panels
+    const yb = T + H;            // bottom fold on long panels
+    const end = 2 * T + H;
+    const xs = [G, G + L, G + L + B, G + 2 * L + B, G + 2 * L + 2 * B - 1];
+
+    const ops = [];
+    let cx = 0, cy = 0;
+    const M = (x, y) => { ops.push(['M', x, y]); cx = x; cy = y; };
+    const Ln = (x, y) => { ops.push(['L', x, y]); cx = x; cy = y; };
+    const A = (x, y, ox, oy) => {
+      ops.push(['C', cx + K * (x - ox), cy + K * (y - oy), x + K * (cx - ox), y + K * (cy - oy), x, y]);
+      cx = x; cy = y;
+    };
+
+    M(xs[0], ys);
+    A(xs[0] + R, ys - R, xs[0], ys - R);
+    for (let i = 0; i < 4; i++) {
+      Ln(xs[i] + R, 0);
+      Ln(xs[i + 1] - R, 0);
+      Ln(xs[i + 1] - R, ys - R);
+      A(xs[i + 1], ys, xs[i + 1], ys - R);
+      if (i < 3) A(xs[i + 1] + R, ys - R, xs[i + 1], ys - R);
+    }
+    Ln(xs[4], ysb);
+    A(xs[4] - R, ysb + R, xs[4], ysb + R);
+    for (let i = 4; i > 0; i--) {
+      Ln(xs[i] - R, end);
+      Ln(xs[i - 1] + R, end);
+      Ln(xs[i - 1] + R, ysb + R);
+      A(xs[i - 1], ysb, xs[i - 1], ysb + R);
+      if (i - 1 > 0) A(xs[i - 1] - R, ysb + R, xs[i - 1], ysb + R);
+    }
+    Ln(0, ysb - G * TAN);
+    Ln(0, ys + G * TAN);
+    ops.push(['Z']);
+
+    const dx = Math.sqrt(R * R - (R - D) * (R - D));
+    const folds = [
+      [xs[0] + dx, T, xs[1] - dx, T], [xs[2] + dx, T, xs[3] - dx, T],
+      [xs[1], ys, xs[2], ys], [xs[3], ys, xs[4], ys],
+      [xs[0] + dx, yb, xs[1] - dx, yb], [xs[2] + dx, yb, xs[3] - dx, yb],
+      [xs[1], ysb, xs[2], ysb], [xs[3], ysb, xs[4], ysb],
+      [xs[0], ys, xs[0], ysb], [xs[1], ys, xs[1], ysb],
+      [xs[2], ys, xs[2], ysb], [xs[3], ys, xs[3], ysb]
+    ];
+
+    const fs = Math.min(24, Math.max(3.5, Math.min(L, B, H) * 0.08));
+    const dims = { lines: [], tris: [], texts: [], fs };
+    dimension(dims, xs[0], T + H * 0.72, xs[1], T + H * 0.72, `${r1(L)} mm`);
+    dimension(dims, xs[1], T + H * 0.28, xs[2], T + H * 0.28, `${r1(B)} mm`);
+    dimension(dims, (xs[2] + xs[3]) / 2, T, (xs[2] + xs[3]) / 2, yb, `${r1(H)} mm`);
+
+    return { ops, folds, dims, W: xs[4], Ht: end };
+  }
+
+  // Helvetica advance widths (per 1000 em) for the characters used in labels
+  function textWidth(s, fs) {
+    const w = { ' ': 278, '.': 278, m: 833 };
+    let t = 0;
+    for (const ch of s) t += w[ch] ?? 556;
+    return t * fs / 1000;
+  }
+
+  function dimension(d, x1, y1, x2, y2, label) {
+    const fs = d.fs;
+    const horiz = y1 === y2;
+    const len = horiz ? x2 - x1 : y2 - y1;
+    const tick = fs * 0.35, aLen = fs * 0.45, aW = fs * 0.17;
+    const tw = textWidth(label, fs);
+    const gap = (horiz ? tw / 2 : fs * 0.7) + fs * 0.4;
+    const fits = gap * 2 < len - 2 * aLen;
+    const mx = (x1 + x2) / 2, my = (y1 + y2) / 2;
+
+    if (horiz) {
+      d.lines.push([x1, y1 - tick, x1, y1 + tick], [x2, y2 - tick, x2, y2 + tick]);
+      d.tris.push([[x1, y1], [x1 + aLen, y1 - aW], [x1 + aLen, y1 + aW]]);
+      d.tris.push([[x2, y2], [x2 - aLen, y2 - aW], [x2 - aLen, y2 + aW]]);
+      if (fits) d.lines.push([x1, y1, mx - gap, y1], [mx + gap, y1, x2, y2]);
+      else d.lines.push([x1, y1, x2, y2]);
+      d.texts.push({ x: mx, y: fits ? my : my - fs * 0.9, s: label });
+    } else {
+      d.lines.push([x1 - tick, y1, x1 + tick, y1], [x2 - tick, y2, x2 + tick, y2]);
+      d.tris.push([[x1, y1], [x1 - aW, y1 + aLen], [x1 + aW, y1 + aLen]]);
+      d.tris.push([[x2, y2], [x2 - aW, y2 - aLen], [x2 + aW, y2 - aLen]]);
+      if (fits) d.lines.push([x1, y1, x1, my - gap], [x1, my + gap, x2, y2]);
+      else d.lines.push([x1, y1, x2, y2]);
+      d.texts.push({ x: fits ? mx : mx + tw / 2 + fs * 0.5, y: my, s: label });
+    }
+  }
+
+  function pathD(ops) {
+    return ops.map(o => {
+      if (o[0] === 'Z') return 'Z';
+      return o[0] + o.slice(1).map(fmt).join(',');
+    }).join(' ');
+  }
+
+  function toSVG(g, preview) {
+    const vb = `${-MARGIN} ${-MARGIN} ${fmt(g.W + 2 * MARGIN)} ${fmt(g.Ht + 2 * MARGIN)}`;
+    const nss = preview ? ' vector-effect="non-scaling-stroke"' : '';
+    const cutW = preview ? 1.5 : 0.5, foldW = preview ? 1.5 : 0.5, dimW = preview ? 1 : 0.3;
+    const dash = preview ? '5 3' : '3 2';
+    const sizeAttr = preview
+      ? 'preserveAspectRatio="xMidYMid meet"'
+      : `width="${fmt(g.W + 2 * MARGIN)}mm" height="${fmt(g.Ht + 2 * MARGIN)}mm"`;
+    const foldD = g.folds.map(f => `M${fmt(f[0])},${fmt(f[1])} L${fmt(f[2])},${fmt(f[3])}`).join(' ');
+    const dimD = g.dims.lines.map(l => `M${fmt(l[0])},${fmt(l[1])} L${fmt(l[2])},${fmt(l[3])}`).join(' ');
+    const triD = g.dims.tris.map(t => `M${t.map(p => fmt(p[0]) + ',' + fmt(p[1])).join(' L')} Z`).join(' ');
+    const texts = g.dims.texts.map(t =>
+      `<text x="${fmt(t.x)}" y="${fmt(t.y)}">${t.s}</text>`).join('');
+    return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${vb}" ${sizeAttr}>` +
+      `<path id="cut" d="${pathD(g.ops)}" fill="${preview ? '#ffffff' : 'none'}" stroke="${COLORS.cut}" stroke-width="${cutW}"${nss}/>` +
+      `<path id="fold" d="${foldD}" fill="none" stroke="${COLORS.fold}" stroke-width="${foldW}" stroke-dasharray="${dash}"${nss}/>` +
+      `<g id="dimensions">` +
+      `<path d="${dimD}" fill="none" stroke="${COLORS.dim}" stroke-width="${dimW}" stroke-linecap="round"${nss}/>` +
+      `<path d="${triD}" fill="${COLORS.dim}"/>` +
+      `<g fill="${COLORS.dim}" font-family="Helvetica, Arial, sans-serif" font-size="${fmt(g.dims.fs)}" text-anchor="middle" dominant-baseline="middle">${texts}</g>` +
+      `</g></svg>`;
+  }
+
+  function toPDF(g) {
+    const s = 72 / 25.4;
+    const pw = (g.W + 2 * MARGIN) * s, ph = (g.Ht + 2 * MARGIN) * s;
+    const n = x => (Math.round(x * 1000) / 1000).toString();
+    const rgb = hex => [1, 3, 5].map(i => n(parseInt(hex.slice(i, i + 2), 16) / 255)).join(' ');
+    let c = `q ${n(s)} 0 0 ${n(-s)} ${n(MARGIN * s)} ${n(ph - MARGIN * s)} cm\n`;
+    c += `${rgb(COLORS.cut)} RG 0.5 w 1 j\n`;
+    for (const o of g.ops) {
+      if (o[0] === 'M') c += `${n(o[1])} ${n(o[2])} m\n`;
+      else if (o[0] === 'L') c += `${n(o[1])} ${n(o[2])} l\n`;
+      else if (o[0] === 'C') c += `${o.slice(1).map(n).join(' ')} c\n`;
+      else c += 'h\n';
+    }
+    c += 'S\n';
+    c += `${rgb(COLORS.fold)} RG 0.5 w [3 2] 0 d\n`;
+    for (const f of g.folds) c += `${n(f[0])} ${n(f[1])} m ${n(f[2])} ${n(f[3])} l S\n`;
+    c += `[] 0 d ${rgb(COLORS.dim)} RG ${rgb(COLORS.dim)} rg 0.3 w 1 J\n`;
+    for (const l of g.dims.lines) c += `${n(l[0])} ${n(l[1])} m ${n(l[2])} ${n(l[3])} l S\n`;
+    for (const t of g.dims.tris) c += `${n(t[0][0])} ${n(t[0][1])} m ${n(t[1][0])} ${n(t[1][1])} l ${n(t[2][0])} ${n(t[2][1])} l h f\n`;
+    const fs = g.dims.fs;
+    for (const t of g.dims.texts) {
+      const x = t.x - textWidth(t.s, fs) / 2, y = t.y + fs * 0.35;
+      c += `BT /F1 ${n(fs)} Tf 1 0 0 -1 ${n(x)} ${n(y)} Tm (${t.s}) Tj ET\n`;
+    }
+    c += 'Q\n';
+
+    const objs = [
+      '<< /Type /Catalog /Pages 2 0 R >>',
+      '<< /Type /Pages /Kids [3 0 R] /Count 1 >>',
+      `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${n(pw)} ${n(ph)}] /Resources << /Font << /F1 5 0 R >> >> /Contents 4 0 R >>`,
+      `<< /Length ${c.length} >>\nstream\n${c}endstream`,
+      '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>'
+    ];
+    let out = '%PDF-1.4\n';
+    const offs = [];
+    objs.forEach((o, i) => { offs.push(out.length); out += `${i + 1} 0 obj\n${o}\nendobj\n`; });
+    const xref = out.length;
+    out += `xref\n0 ${objs.length + 1}\n0000000000 65535 f \n`;
+    for (const o of offs) out += `${String(o).padStart(10, '0')} 00000 n \n`;
+    out += `trailer\n<< /Size ${objs.length + 1} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF\n`;
+    return out;
+  }
+
+  let current = null;
+
+  function render() {
+    const p = read();
+    const errs = validate(p);
+    const preview = $('preview');
+    if (errs.length) {
+      current = null;
+      preview.innerHTML = `<div class="error">${errs[0]}</div>`;
+      $('sheet').textContent = '–';
+      $('dlPdf').disabled = $('dlSvg').disabled = true;
+      return;
+    }
+    current = { p, g: build(p) };
+    preview.innerHTML = toSVG(current.g, true);
+    $('sheet').textContent = `${r1(current.g.W)} × ${r1(current.g.Ht)} mm`;
+    $('dlPdf').disabled = $('dlSvg').disabled = false;
+  }
+
+  // Downloads: the claude.ai viewer's downloads capability, or a plain link when hosted elsewhere
+  let dlPromise = null;
+  function getDownloader() {
+    if (!dlPromise) {
+      dlPromise = (window.claude && typeof window.claude.use === 'function')
+        ? window.claude.use('downloads').catch(() => null)
+        : Promise.resolve('anchor');
+    }
+    return dlPromise;
+  }
+
+  function setStatus(msg) { $('status').textContent = msg; }
+
+  async function save(ext) {
+    if (!current) return;
+    const { L, B, H } = current.p;
+    const filename = `keyline-${r1(L)}x${r1(B)}x${r1(H)}.${ext}`;
+    const data = ext === 'pdf' ? toPDF(current.g) : `<?xml version="1.0" encoding="UTF-8"?>\n${toSVG(current.g, false)}\n`;
+    const blob = new Blob([data], { type: ext === 'pdf' ? 'application/pdf' : 'image/svg+xml' });
+    setStatus('');
+    const dl = await getDownloader();
+    if (dl === 'anchor') {
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = filename;
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+      return;
+    }
+    if (!dl) { setStatus('Downloads aren’t available in this view.'); return; }
+    try {
+      await dl.save({ filename, data: blob });
+      setStatus(`Saved ${filename}`);
+    } catch (e) {
+      const code = e && e.code;
+      if (code === 'declined') setStatus('Download cancelled.');
+      else if (code === 'rate_limited') setStatus('A download is already waiting for confirmation.');
+      else setStatus('Downloads aren’t available in this view.');
+    }
+  }
+
+  for (const k of ['L', 'B', 'H', 'G', 'E']) $(k).addEventListener('input', render);
+  $('dlPdf').addEventListener('click', () => save('pdf'));
+  $('dlSvg').addEventListener('click', () => save('svg'));
+  render();
+})();
+</script>
+</body>
+</html>
